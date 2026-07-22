@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# Project data & logs
+backend/data/uploads/*
+backend/data/parsed/*
+backend/data/generated/*
+backend/data/exports/*
+backend/data/cache/*
+backend/logs/*.log
+*.log
+
+# Keep gitkeep in data folders
+!backend/data/**/.gitkeep
+
+# Environment variables
+.env
+backend/.env
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test caches
+.pytest_cache/
+*.egg-info/

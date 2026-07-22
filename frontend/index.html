@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<!--
+  AI Resume Copilot — Frontend
+  ============================
+  A static, dependency-free frontend for the AI Resume Copilot backend
+  (FastAPI + LangGraph). No build step required: open index.html directly,
+  or serve the /frontend folder with any static file server.
+
+  FILE MAP
+  ---------
+  index.html        this file — structure & copy
+  css/style.css      design system + layout + animation
+  js/config.js       single place to point the UI at your backend
+  js/api.js          thin fetch wrapper around every backend endpoint
+  js/main.js         page interactions: upload flow, rendering results
+
+  FUTURE ENHANCEMENTS (tracked here so intent isn't lost between sessions)
+  --------------------------------------------------------------------
+  - Auth + saved session history (list past generations per user)
+  - Real-time agent progress via WebSocket/SSE instead of a single
+    blocking /resume/generate call (surface each of the 8 agents as they
+    complete, matching the backend's actual parallel fan-out)
+  - Template picker with live visual previews (modern/minimal/academic)
+  - Inline resume editor before export (tweak AI output by hand)
+  - Drag-to-reorder resume sections before rendering
+  - Multi-language resume generation
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Resume Copilot — Tailored resumes, built by agents</title>
+  <meta name="description" content="Upload your resume and a job description. Eight specialized AI agents tailor every section in parallel, validate it against the role, and hand you back an ATS-ready resume." />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- ============================= NAV ============================= -->
+  <header class="nav" id="top">
+    <div class="nav__inner">
+      <a class="nav__brand" href="#top" aria-label="AI Resume Copilot home">
+        <svg class="nav__mark" viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M8 4h12l6 6v18a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M20 4v6h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M11 17h10M11 21h10M11 13h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span>Resume Copilot</span>
+      </a>
+      <nav class="nav__links" aria-label="Primary">
+        <a href="#how-it-works">How it works</a>
+        <a href="#demo">Try it</a>
+        <a href="#agents">Agents</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <div class="nav__status" id="backend-status" title="Backend connection">
+        <span class="dot" aria-hidden="true"></span>
+        <span class="nav__status-label">Checking backend…</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- ============================= HERO ============================= -->
+    <section class="hero">
+      <div class="hero__inner">
+        <p class="eyebrow reveal">AI resume copilot</p>
+        <h1 class="hero__title">
+          <span class="reveal-line">Your resume,</span>
+          <span class="reveal-line">rewritten by a team</span>
+          <span class="reveal-line"><em>of eight agents.</em></span>
+        </h1>
+        <p class="hero__subtitle reveal">
+          Give it a resume and a job description. Eight specialized agents
+          tailor your summary, skills, experience, and projects in
+          parallel — then a validator checks every claim against your
+          original resume before you ever see it.
+        </p>
+        <div class="hero__actions reveal">
+          <a href="#demo" class="btn btn--primary">Try it on your resume</a>
+          <a href="#how-it-works" class="btn btn--ghost">See how it works</a>
+        </div>
+
+        <!-- Signature element: a resume card that visibly "tailors" itself -->
+        <div class="hero__visual reveal" aria-hidden="true">
+          <div class="doc-card">
+            <div class="doc-card__head">
+              <div class="doc-card__avatar"></div>
+              <div class="doc-card__lines">
+                <span class="doc-line doc-line--name"></span>
+                <span class="doc-line doc-line--role"></span>
+              </div>
+            </div>
+            <div class="doc-card__body">
+              <span class="doc-line doc-line--tailor w-90"></span>
+              <span class="doc-line doc-line--tailor w-75"></span>
+              <span class="doc-line w-60"></span>
+              <span class="doc-line doc-line--tailor w-95"></span>
+              <span class="doc-line w-40"></span>
+              <span class="doc-line doc-line--tailor w-80"></span>
+              <span class="doc-line w-55"></span>
+            </div>
+            <span class="doc-card__sweep"></span>
+          </div>
+          <div class="floating-badge floating-badge--score">
+            <span class="floating-badge__label">ATS Score</span>
+            <span class="floating-badge__value">94</span>
+          </div>
+          <div class="floating-badge floating-badge--keywords">
+            <span class="floating-badge__label">Keywords matched</span>
+            <span class="floating-badge__value">12/13</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================= LOGOS / TRUST STRIP ============================= -->
+    <section class="strip reveal">
+      <p>Built on a validated multi-agent pipeline — every generated line is fact-checked against your original resume before export.</p>
+    </section>
+
+    <!-- ============================= HOW IT WORKS ============================= -->
+    <section class="section" id="how-it-works">
+      <div class="section__inner">
+        <p class="eyebrow reveal">Three steps</p>
+        <h2 class="section__title reveal">From two documents to one tailored resume</h2>
+
+        <ol class="steps">
+          <li class="step reveal">
+            <span class="step__number">01</span>
+            <h3>Upload resume &amp; job description</h3>
+            <p>PDF or DOCX for your resume, any format for the job post. Nothing is stored longer than your session.</p>
+          </li>
+          <li class="step reveal">
+            <span class="step__number">02</span>
+            <h3>Agents plan, generate, validate</h3>
+            <p>A planning agent maps the role and keywords. Eight section agents write in parallel. A validator catches anything unsupported by your original resume and triggers a targeted retry.</p>
+          </li>
+          <li class="step reveal">
+            <span class="step__number">03</span>
+            <h3>Review your score and export</h3>
+            <p>See your ATS score, matched and missing skills, and recommendations — then export as PDF, DOCX, or HTML.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ============================= LIVE DEMO ============================= -->
+    <section class="section section--demo" id="demo">
+      <div class="section__inner">
+        <p class="eyebrow reveal">Live demo</p>
+        <h2 class="section__title reveal">Try it on your own resume</h2>
+        <p class="section__lede reveal">Runs against your own backend instance. Nothing leaves your machine except what you send to your configured API.</p>
+
+        <div class="demo-panel reveal">
+
+          <!-- Step state: upload -->
+          <div class="demo-step" id="step-upload" data-active="true">
+            <div class="dropzone-grid">
+              <label class="dropzone" id="dropzone-resume" for="input-resume">
+                <input type="file" id="input-resume" accept=".pdf,.docx" hidden />
+                <svg class="dropzone__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span class="dropzone__title">Your resume</span>
+                <span class="dropzone__hint">PDF or DOCX, up to 10MB</span>
+                <span class="dropzone__filename" id="filename-resume"></span>
+              </label>
+
+              <label class="dropzone" id="dropzone-jd" for="input-jd">
+                <input type="file" id="input-jd" accept=".pdf,.docx,.txt" hidden />
+                <svg class="dropzone__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span class="dropzone__title">Job description</span>
+                <span class="dropzone__hint">PDF, DOCX, or TXT</span>
+                <span class="dropzone__filename" id="filename-jd"></span>
+              </label>
+            </div>
+
+            <label class="field" for="input-notes">
+              <span class="field__label">Notes for the agents <em>(optional)</em></span>
+              <textarea id="input-notes" placeholder="e.g. Emphasize backend and infra experience over frontend work." rows="2"></textarea>
+            </label>
+
+            <label class="field" for="input-template">
+              <span class="field__label">Template</span>
+              <select id="input-template">
+                <option value="ats">ATS — clean, single column</option>
+                <option value="modern">Modern</option>
+                <option value="minimal">Minimal</option>
+                <option value="academic">Academic</option>
+              </select>
+            </label>
+
+            <button class="btn btn--primary btn--full" id="btn-generate" disabled>
+              Upload both files to continue
+            </button>
+            <p class="form-error" id="form-error" role="alert"></p>
+          </div>
+
+          <!-- Step state: generating -->
+          <div class="demo-step" id="step-generating" data-active="false">
+            <div class="agent-grid" id="agent-grid"><!-- populated by main.js --></div>
+            <p class="agent-status" id="agent-status">Planning your tailoring strategy…</p>
+          </div>
+
+          <!-- Step state: results -->
+          <div class="demo-step" id="step-results" data-active="false">
+            <div class="results-grid">
+
+              <div class="results-scorecard">
+                <div class="score-ring" id="score-ring">
+                  <svg viewBox="0 0 120 120" aria-hidden="true">
+                    <circle class="score-ring__track" cx="60" cy="60" r="52" />
+                    <circle class="score-ring__fill" id="score-ring-fill" cx="60" cy="60" r="52" />
+                  </svg>
+                  <div class="score-ring__label">
+                    <span id="score-value">0</span>
+                    <small>ATS score</small>
+                  </div>
+                </div>
+
+                <dl class="metric-list">
+                  <div class="metric-list__row">
+                    <dt>Keyword coverage</dt>
+                    <dd id="metric-keywords">—</dd>
+                  </div>
+                  <div class="metric-list__row">
+                    <dt>Resume match</dt>
+                    <dd id="metric-match">—</dd>
+                  </div>
+                  <div class="metric-list__row">
+                    <dt>Validation</dt>
+                    <dd id="metric-validation">—</dd>
+                  </div>
+                </dl>
+
+                <div class="tag-cluster" id="strengths-list" aria-label="Strengths"></div>
+                <div class="tag-cluster tag-cluster--missing" id="missing-skills-list" aria-label="Missing skills"></div>
+
+                <div class="export-row">
+                  <button class="btn btn--secondary" data-export="pdf">Export PDF</button>
+                  <button class="btn btn--secondary" data-export="docx">Export DOCX</button>
+                  <button class="btn btn--secondary" data-export="html">Export HTML</button>
+                </div>
+              </div>
+
+              <div class="results-main">
+                <div class="results-preview">
+                  <div class="results-preview__toolbar">
+                    <span>Tailored resume preview</span>
+                    <button class="btn btn--ghost btn--small" id="btn-start-over">Start over</button>
+                  </div>
+                  <div class="resume-preview" id="resume-preview"><!-- populated by main.js --></div>
+                </div>
+
+                <div class="results-insights">
+                  <div class="insight-card" id="recommendations-card">
+                    <h4>Recommendations</h4>
+                    <ul class="insight-list" id="recommendations-list"></ul>
+                  </div>
+
+                  <div class="insight-card" id="weaknesses-card">
+                    <h4>What to improve</h4>
+                    <ul class="insight-list insight-list--warn" id="weaknesses-list"></ul>
+                  </div>
+
+                  <div class="insight-card" id="resources-card">
+                    <h4>Close the gap</h4>
+                    <p class="insight-card__hint">A starting point for each missing skill — not a substitute for real practice.</p>
+                    <div class="resource-list" id="resource-list"></div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================= AGENTS ============================= -->
+    <section class="section" id="agents">
+      <div class="section__inner">
+        <p class="eyebrow reveal">Under the hood</p>
+        <h2 class="section__title reveal">Eight agents, one job each</h2>
+        <p class="section__lede reveal">Every agent reads the full picture but writes only its own section — nothing is allowed to overwrite another agent's work.</p>
+
+        <div class="agent-cards">
+          <article class="agent-card reveal"><h3>Summary</h3><p>Writes a 3–4 sentence professional summary aligned to the target role.</p></article>
+          <article class="agent-card reveal"><h3>Skills</h3><p>Selects and categorizes only skills verified in your original resume.</p></article>
+          <article class="agent-card reveal"><h3>Experience</h3><p>Rewrites bullets for clarity and impact — dates, titles, and employers never change.</p></article>
+          <article class="agent-card reveal"><h3>Projects</h3><p>Ranks and polishes projects by relevance to the role.</p></article>
+          <article class="agent-card reveal"><h3>Education</h3><p>Formats institutions, degrees, and dates consistently.</p></article>
+          <article class="agent-card reveal"><h3>Certifications</h3><p>Includes only certifications explicitly present in your resume.</p></article>
+          <article class="agent-card reveal"><h3>Achievements</h3><p>Sharpens language without inventing awards or rankings.</p></article>
+          <article class="agent-card reveal"><h3>Links</h3><p>Formats GitHub, LinkedIn, and portfolio links consistently.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================= FAQ ============================= -->
+    <section class="section" id="faq">
+      <div class="section__inner section__inner--narrow">
+        <p class="eyebrow reveal">Questions</p>
+        <h2 class="section__title reveal">Good to know</h2>
+
+        <div class="faq-list">
+          <details class="faq-item reveal">
+            <summary>Can it invent experience I don't have?</summary>
+            <p>No. Every prompt instructs agents to use only your parsed resume data, and a separate validation pass fact-checks the output before export — unsupported claims trigger a retry of just that section.</p>
+          </details>
+          <details class="faq-item reveal">
+            <summary>What files can I upload?</summary>
+            <p>Resumes as PDF or DOCX. Job descriptions as PDF, DOCX, or plain text.</p>
+          </details>
+          <details class="faq-item reveal">
+            <summary>Where does this run?</summary>
+            <p>This page talks to your own backend instance over the API — configure the URL in <code>js/config.js</code>. Nothing is sent anywhere else.</p>
+          </details>
+          <details class="faq-item reveal">
+            <summary>What export formats are supported?</summary>
+            <p>PDF, DOCX, and HTML, in any of four templates.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer__container">
+      <div class="footer__main">
+        <div class="footer__col footer__col--brand">
+          <div class="footer__brand-title">
+            <svg class="nav__mark" viewBox="0 0 32 32" aria-hidden="true" width="20" height="20">
+              <path d="M8 4h12l6 6v18a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M20 4v6h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M11 17h10M11 21h10M11 13h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <span>AI Resume Copilot</span>
+          </div>
+          <p class="footer__desc">
+            A production-ready resume tailoring product powered by FastAPI and an 8-agent LangGraph pipeline.
+          </p>
+        </div>
+
+        <div class="footer__col">
+          <h4 class="footer__heading">Developer Info</h4>
+          <ul class="footer__list">
+            <li><span class="footer__author-name">Shanmuka</span></li>
+            <li><span class="footer__author-role">AI / Full-Stack Engineer</span></li>
+            <li><a href="mailto:your.email@example.com" class="footer__link">your.email@example.com</a></li>
+          </ul>
+        </div>
+
+        <div class="footer__col">
+          <h4 class="footer__heading">Connect</h4>
+          <div class="footer__socials">
+            <a href="https://github.com" target="_blank" rel="noopener" class="footer__social-btn" aria-label="GitHub">
+              <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+              GitHub
+            </a>
+            <a href="https://linkedin.com" target="_blank" rel="noopener" class="footer__social-btn" aria-label="LinkedIn">
+              <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg>
+              LinkedIn
+            </a>
+            <a href="#" class="footer__social-btn" aria-label="Portfolio">
+              <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+              Portfolio
+            </a>
+          </div>
+        </div>
+
+        <div class="footer__col">
+          <h4 class="footer__heading">Navigation</h4>
+          <ul class="footer__list">
+            <li><a href="#how-it-works" class="footer__link">How it works</a></li>
+            <li><a href="#demo" class="footer__link">Try Copilot</a></li>
+            <li><a href="#agents" class="footer__link">Agents</a></li>
+            <li><a href="#faq" class="footer__link">FAQ</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer__bottom">
+        <span>© 2026 AI Resume Copilot. Developed by Shanmuka.</span>
+        <span class="footer__meta">No accounts • No tracking • Data stays on your backend</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
